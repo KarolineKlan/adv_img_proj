@@ -88,7 +88,8 @@ class EMDataset(Dataset):
         return image, label
 
 
-
+# ------------------------------------------------------------------------------------------------
+###### Alt herunder er bare til at få et par plots og printe lidt for at se om det virker ###################
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
