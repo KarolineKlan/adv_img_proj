@@ -3,6 +3,7 @@ docs/site/
 # test cache
 manual_test/
 
+models/
 # other local dev info
 .vscode/
 
