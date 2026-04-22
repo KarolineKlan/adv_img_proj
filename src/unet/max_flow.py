@@ -15,7 +15,7 @@ def run_segmentation(args):
     N, M = image.shape
     d = image.flatten()
 
-    # 2. Histogram Analysis to find mu1 and mu2
+    # Histogram Analysis to find mu1 and mu2
     hist, bin_edges = np.histogram(d, bins=50)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     peaks, _ = find_peaks(hist, distance=5)
@@ -31,7 +31,7 @@ def run_segmentation(args):
     mu2 = mu_values[-1] # Lighter (Foreground)
     print(f"Detected Means - Background: {mu1:.2f}, Foreground: {mu2:.2f}")
 
-    # 3. Build the Graph
+    # Build the Graph
     g = maxflow.Graph[float]()
     nodes = g.add_grid_nodes((N, M))
 
@@ -43,30 +43,35 @@ def run_segmentation(args):
     g.add_grid_edges(nodes, args.beta, structure=struct_h, symmetric=True)
     g.add_grid_edges(nodes, args.beta, structure=struct_v, symmetric=True)
 
-    # 4. Set Terminal Edges (The Data Term)
+    # Set Terminal Edges (The Data Term)
     # Source (connected to mu2) and Sink (connected to mu1)
     cap_source = (image - mu1)**2
     cap_sink = (image - mu2)**2
     g.add_grid_tedges(nodes, cap_source, cap_sink)
 
-    # 5. Solve and Extract Result
+    # Solve and Extract Result
     g.maxflow()
     labeling_image = g.get_grid_segments(nodes).astype(np.uint8)
     labeling_image = 1 - labeling_image  # Invert: 1 for foreground, 0 for background
 
-    # 6. Evaluation
+    # plot histogram with peaks and means with 100 bins
+    plt.figure(figsize=(10, 6))
+    plt.hist(d, bins=500, color='gray', alpha=0.7)
+    plt.title('Histogram of Pixel Intensities with Detected Peaks and Means')
+    plt.xlabel('Pixel Intensity')
+    plt.ylabel('Frequency')
+    plt.axvline(x=mu1, color='r', linestyle='--', label='Background Mean (mu1)')
+    plt.axvline(x=mu2, color='b', linestyle='--', label='Foreground Mean (mu2)')
+    plt.legend()
+    plt.show()
+
+    # Evaluation
     dice = dice_score(labeling_image, mask)
     iou = iou_score(labeling_image, mask)
     print(f"Results for ID {args.image_id}: Dice={dice:.4f}, IoU={iou:.4f}")
 
-    overlay_image = image.copy()
-    overlay_image = np.stack([overlay_image]*3, axis=-1)  # Convert to RGB for visualization
-    overlay_image[mask == 1] = [255, 0, 0]  # Red for true mask
-    overlay_image[labeling_image == 1] += [0, 255, 0]  # Green for predicted mask (overlaps will be yellow)
-
-
     # 7. Visualization
-    fig, axs = plt.subplots(1, 4, figsize=(15, 5))
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
     axs[0].imshow(image, cmap='gray')
     axs[0].set_title(f"Original (ID: {args.image_id})")
     
@@ -75,10 +80,6 @@ def run_segmentation(args):
     
     axs[2].imshow(labeling_image, cmap='gray')
     axs[2].set_title(f"Graph Cut (beta={args.beta})")
-
-    axs[3].imshow(overlay_image)
-    axs[3].set_title("Overlay (Red=True, Green=Predicted)")
-
     
     for ax in axs:
         ax.axis('off')
@@ -89,7 +90,7 @@ def run_segmentation(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="2D Graph Cut Image Segmentation")
     
-    parser.add_argument('--image_id', type=str, default='30', 
+    parser.add_argument('--image_id', type=str, default='29', 
                         help='ID number for image and mask files')
     parser.add_argument('--beta', type=float, default=0.0001, 
                         help='Smoothing constant (higher = smoother regions)')
