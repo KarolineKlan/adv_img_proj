@@ -1,12 +1,12 @@
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from pathlib import Path
 from collections import defaultdict
 
 from data import EMDataset
 from model import UnetModel
+from visualize import plot_segmentation_result
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 DATA_DIR        = Path("data/raw")
@@ -42,31 +42,7 @@ def stitch(patches_with_coords, full_size=FULL_SIZE):
     return canvas
 
 
-# ── Visualise one stitched result ─────────────────────────────────────────────
 FIGURES_DIR = Path("reports/figures")
-
-
-def plot_stitched(image, label, pred, img_idx, dice, iou):
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-
-    axes[0].imshow(image, cmap="gray")
-    axes[0].set_title(f"Image {img_idx:02d}")
-    axes[0].axis("off")
-
-    axes[1].imshow(label, cmap="gray", vmin=0, vmax=1)
-    axes[1].set_title("Label (ground truth)")
-    axes[1].axis("off")
-
-    axes[2].imshow(pred, cmap="gray", vmin=0, vmax=1)
-    axes[2].set_title(f"Prediction\nDice: {dice:.3f}  IoU: {iou:.3f}")
-    axes[2].axis("off")
-
-    plt.suptitle(f"Test image {img_idx:02d}", fontsize=13)
-    plt.tight_layout()
-    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    plt.savefig(FIGURES_DIR / f"eval_image{img_idx:02d}.png", dpi=100, bbox_inches="tight")
-    plt.close()
-    print(f"Saved → {FIGURES_DIR / f'eval_image{img_idx:02d}.png'}")
 
 
 # ── Main evaluation ───────────────────────────────────────────────────────────
@@ -131,7 +107,13 @@ if __name__ == "__main__":
         print(f"Image {img_idx:02d}  Dice: {dice:.3f}  IoU: {iou:.3f}")
 
         # Show stitched result
-        plot_stitched(full_image, full_label, full_pred, img_idx, dice, iou)
+        save_path = FIGURES_DIR / f"eval_image{img_idx:02d}.png"
+        plot_segmentation_result(
+            full_image, full_label, full_pred,
+            title=f"Test image {img_idx:02d}  —  Dice: {dice:.3f}  IoU: {iou:.3f}",
+            save_path=save_path,
+        )
+        print(f"Saved → {save_path}")
 
     # --- Summary ---
     print(f"\nMean Dice : {np.mean(all_dice):.3f}  ± {np.std(all_dice):.3f}")

@@ -16,7 +16,7 @@ class UnetModel(nn.Module):
         f = 64  # base number of features
 
         # Contracting path (encoder)
-        self.enc1 = self.conv_block(1,      f)      # (B,  64, 256, 256) -> pool -> (B,  64, 128, 128)
+        self.enc1 = self.conv_block(1,      f)      # (B,  64, 256, 256)
         self.enc2 = self.conv_block(f,    2*f)      # (B, 128, 128, 128) -> pool -> (B, 128,  64,  64)
         self.enc3 = self.conv_block(2*f,  4*f)      # (B, 256,  64,  64) -> pool -> (B, 256,  32,  32)
         self.enc4 = self.conv_block(4*f,  8*f)      # (B, 512,  32,  32) -> pool -> (B, 512,  16,  16)
@@ -54,10 +54,10 @@ class UnetModel(nn.Module):
 
     def forward(self, x):
         # Encoder — save outputs for skip connections
-        s1 = self.enc1(x)           # (B,  64, 256, 256)
-        s2 = self.enc2(self.pool(s1))  # (B, 128, 128, 128)
-        s3 = self.enc3(self.pool(s2))  # (B, 256,  64,  64)
-        s4 = self.enc4(self.pool(s3))  # (B, 512,  32,  32)
+        s1 = self.enc1(x)              # (B,  1, 256, 256) -> conv -> (B,  64, 256, 256)
+        s2 = self.enc2(self.pool(s1))  # (B, 128, 128, 128) -> pool -> (B, 128,  64,  64)
+        s3 = self.enc3(self.pool(s2))  # (B, 256,  64,  64) -> pool -> (B, 256,  32,  32)
+        s4 = self.enc4(self.pool(s3))  # (B, 512,  32,  32) -> pool -> (B, 512,  16,  16)
 
         # Bottleneck
         x = self.bottleneck(self.pool(s4))  # (B, 1024, 16, 16)

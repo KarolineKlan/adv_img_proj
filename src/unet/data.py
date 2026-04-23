@@ -7,9 +7,9 @@ import random
 
 #we decide to do a 20/5/5 split 
 
-TRAIN_INDICES = [i for i in range(1, 24)]   # 1–22
-VAL_INDICES   = [i for i in range(24, 29)]  # 24–28
-TEST_INDICES  = [i for i in range(29, 31)]  # 29–30
+TRAIN_INDICES = [i for i in range(1, 21)]   # 1–20
+VAL_INDICES   = [i for i in range(21, 26)]  # 20–25
+TEST_INDICES  = [i for i in range(26, 31)]  # 26–30
 
 
 class EMDataset(Dataset):
