@@ -17,18 +17,22 @@ PROB_MAPS_DIR   = Path("data/prob_maps")  # max_flow.py reads .npy files from he
 
 
 # ── Metrics ───────────────────────────────────────────────────────────────────
+# Convention: labels are membrane=0, background=1 (matching the raw PNG files
+# where membranes are dark/black and background is white/bright).
+# Metrics evaluate the membrane class (== 0).
+
 def dice_score(pred, label):
-    """Dice score for the membrane class (class = 1).
+    """Dice score for the membrane class (membrane = 0).
     pred, label: 2D numpy arrays with values in {0, 1}
     """
-    intersection = np.logical_and(pred == 1, label == 1).sum()
-    return (2 * intersection) / (pred.sum() + label.sum() + 1e-8)
+    intersection = np.logical_and(pred == 0, label == 0).sum()
+    return (2 * intersection) / ((pred == 0).sum() + (label == 0).sum() + 1e-8)
 
 
 def iou_score(pred, label):
-    """IoU for the membrane class (class = 1)."""
-    intersection = np.logical_and(pred == 1, label == 1).sum()
-    union        = np.logical_or( pred == 1, label == 1).sum()
+    """IoU for the membrane class (membrane = 0)."""
+    intersection = np.logical_and(pred == 0, label == 0).sum()
+    union        = np.logical_or( pred == 0, label == 0).sum()
     return intersection / (union + 1e-8)
 
 
@@ -81,20 +85,21 @@ if __name__ == "__main__":
 
         for patch_dict in patches:
             image_np = patch_dict["image"]   # (256, 256) float32
-            label_np = patch_dict["label"]   # (256, 256) int64
+            label_np = patch_dict["label"]   # (256, 256) int64 — membrane=0, background=1
             r, c     = patch_dict["row"], patch_dict["col"]
 
             image_tensor = torch.from_numpy(image_np).unsqueeze(0).unsqueeze(0).to(device)
             with torch.no_grad():
                 logits = model(image_tensor)                             # (1, 2, 256, 256)
 
-                # Hard prediction — used for metrics
+                # Hard prediction — argmax gives 0 (membrane) or 1 (background)
                 pred_np = logits.argmax(dim=1).squeeze().cpu().numpy()  # (256, 256)
 
                 # Soft probability — same forward pass, no extra cost
                 # Identical to Week 10: prob_val = torch.nn.functional.softmax(lgt_val, dim=1)
+                # Channel 0 = P(membrane), channel 1 = P(background) — matches label convention
                 probs   = torch.nn.functional.softmax(logits, dim=1)   # (1, 2, 256, 256)
-                prob_np = probs[0, 1].cpu().numpy()                     # (256, 256) P(membrane)
+                prob_np = probs[0, 0].cpu().numpy()                     # (256, 256) P(membrane)
 
             image_patches.append((image_np, r, c))
             label_patches.append((label_np, r, c))
@@ -105,18 +110,18 @@ if __name__ == "__main__":
         full_image = stitch(image_patches)
         full_label = stitch(label_patches)
         full_pred  = stitch(pred_patches)
-        full_prob  = stitch(prob_patches)  # float32 in [0, 1]
+        full_prob  = stitch(prob_patches)  # float32 in [0, 1] — P(membrane)
 
-        # Compute metrics
+        # Compute metrics on membrane class (== 0)
         dice = dice_score(full_pred, full_label)
         iou  = iou_score( full_pred, full_label)
         all_dice.append(dice)
         all_iou.append(iou)
         print(f"Image {img_idx:02d}  Dice: {dice:.3f}  IoU: {iou:.3f}")
 
-        # Save probability maps as .npy — max_flow.py loads these directly:
-        #   cap_sink   = np.load("models/prob_maps/prob_membrane_XX.npy")
-        #   cap_source = np.load("models/prob_maps/prob_background_XX.npy")
+        # Save probability maps — max_flow.py loads these directly:
+        #   cap_sink   = np.load("data/prob_maps/prob_membrane_XX.npy")   → P(membrane)
+        #   cap_source = np.load("data/prob_maps/prob_background_XX.npy") → P(background)
         np.save(PROB_MAPS_DIR / f"prob_membrane_{img_idx:02d}.npy",   full_prob)
         np.save(PROB_MAPS_DIR / f"prob_background_{img_idx:02d}.npy", 1 - full_prob)
         print(f"  Saved → prob_membrane_{img_idx:02d}.npy, prob_background_{img_idx:02d}.npy")
