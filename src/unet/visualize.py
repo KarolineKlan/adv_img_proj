@@ -76,20 +76,20 @@ def plot_segmentation_result(image, label, pred, title="", save_path=None):
     """
     overlay = make_overlay(image, pred)
 
-    _, axes = plt.subplots(1, 4, figsize=(16, 4))
+    _, axes = plt.subplots(1, 4, figsize=(16, 5))
     panels = [
         (image,   "gray", "Input"),
         (label,   "gray", "Ground Truth"),
         (pred,    "gray", "Prediction"),
-        (overlay, None,   "Overlay"),
+        (overlay, None,   "Prediction Overlay"),
     ]
     for ax, (data, cmap, name) in zip(axes, panels):
         ax.imshow(data, cmap=cmap, vmin=0, vmax=1) if cmap else ax.imshow(data)
-        ax.set_title(name)
+        ax.set_title(name, fontsize=18, fontweight="bold") #to adjust the title font size and weight, we can use: ax.set_title(name, fontsize=14, fontweight="bold")
         ax.axis("off")
 
     if title:
-        plt.suptitle(title, fontsize=12)
+        plt.suptitle(title, fontsize=20, fontweight="bold") #to place the title below the plot and adjust its font size, we can use: plt.suptitle(title, fontsize=12)
     plt.tight_layout()
 
     if save_path is not None:

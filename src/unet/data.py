@@ -2,14 +2,43 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
+from torchvision.transforms.functional import elastic_transform, gaussian_blur
+from torchvision.transforms import InterpolationMode
 import PIL.Image
 import random
 
-#we decide to do a 20/5/5 split 
 
-TRAIN_INDICES = [i for i in range(1, 21)]   # 1–20
-VAL_INDICES   = [i for i in range(21, 26)]  # 20–25
-TEST_INDICES  = [i for i in range(26, 31)]  # 26–30
+def elastic_deform(image, label, alpha=34.0, sigma=4.0, seed=None):
+    """Apply identical elastic deformation to image and label.
+
+    Uses torchvision's elastic_transform with a shared displacement field so
+    image and label stay aligned. Bilinear interpolation for the image,
+    nearest-neighbour for the label to preserve integer class values.
+    """
+    h, w = image.shape
+    # Generate and smooth displacement field (no scipy needed)
+    generator = torch.Generator()
+    if seed is not None:
+        generator.manual_seed(seed)
+    noise = torch.randn(2, h, w, generator=generator)
+    kernel_size = 2 * int(4 * sigma) + 1          # 6-sigma rule, forced odd
+    # Divide by image size: elastic_transform expects normalized [-1, 1] coordinates
+    dx = gaussian_blur(noise[0:1], kernel_size, sigma) * alpha / w  # (1, H, W)
+    dy = gaussian_blur(noise[1:2], kernel_size, sigma) * alpha / h
+    displacement = torch.stack([dx.squeeze(0), dy.squeeze(0)], dim=-1).unsqueeze(0)  # (1, H, W, 2)
+
+    img_t = torch.from_numpy(image).unsqueeze(0)                   # (1, H, W)
+    lbl_t = torch.from_numpy(label.astype(np.float32)).unsqueeze(0)
+
+    img_def = elastic_transform(img_t, displacement, InterpolationMode.BILINEAR).squeeze(0).numpy()
+    lbl_def = elastic_transform(lbl_t, displacement, InterpolationMode.NEAREST).squeeze(0).numpy().astype(np.int64)
+    return img_def, lbl_def
+
+#we decide to do a 23/5/2 split 
+
+TRAIN_INDICES = [i for i in range(1, 24)]   # 1–23
+VAL_INDICES   = [i for i in range(24, 29)]  # 24–28
+TEST_INDICES  = [i for i in range(29, 31)]  # 29–30
 
 
 class EMDataset(Dataset):
@@ -81,6 +110,8 @@ class EMDataset(Dataset):
             k = random.randint(0, 3)
             image = np.rot90(image, k).copy()
             label = np.rot90(label, k).copy()
+            if random.random() > 0.5:
+                image, label = elastic_deform(image, label)
 
         image = torch.tensor(image).unsqueeze(0)  # (1, 256, 256)
         label = torch.tensor(label)               # (256, 256)
@@ -205,3 +236,30 @@ if __name__ == "__main__":
     fig2.suptitle("Augmentation showcase — specific transforms per column", fontsize=13)
     plt.tight_layout()
     plt.show()
+
+    ######## POSTER AUGMENTATION FIGURE ############
+    # Single patch shown with each augmentation type — designed for poster use
+    poster_patch = train_data.patches[0]
+    img = poster_patch["image"]
+    img_elastic, _ = elastic_deform(img, poster_patch["label"], seed=42)
+
+    poster_transforms = {
+        "Original":            img,
+        "Flip \n horizontal":     np.fliplr(img).copy(),
+        "Flip \n vertical":       np.flipud(img).copy(),
+        "Elastic \n deformation": img_elastic,
+        "90° \n rotation":        np.rot90(img, 1).copy(),
+        "180° \n rotation":       np.rot90(img, 2).copy(),
+        "270° \n rotation":       np.rot90(img, 3).copy(),
+    }
+
+    fig3, axes3 = plt.subplots(1, len(poster_transforms), figsize=(20, 5))
+    for ax, (name, data) in zip(axes3, poster_transforms.items()):
+        ax.imshow(data, cmap="gray")
+        ax.set_title(name, fontsize=16, fontweight="bold", pad=12)
+        ax.axis("off")
+
+    plt.tight_layout()
+    plt.savefig("reports/figures/augmentation_poster.png", dpi=150, bbox_inches="tight")
+    plt.show()
+    print("Saved → reports/figures/augmentation_poster.png")
